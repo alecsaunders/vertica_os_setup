@@ -165,7 +165,7 @@ fi
 # SELinux Configuration: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/SELinux.htm
 if [ "${SELINUX,,}" == "permissive" ]; then
 	SELINUX=Permissive
-	echo setenforce Permissive
+	setenforce Permissive
 else
 	SELINUX=disabled
 	setenforce 0
