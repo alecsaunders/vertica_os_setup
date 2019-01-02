@@ -173,6 +173,8 @@ echo "if test -f /sys/kernel/mm/transparent_hugepage/enabled; then
 fi" >> /etc/rc.local
 
 # TZ Environment Variable: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/TZenvironmentVar.htm
+yum update tzdata
+
 if [ -n "$ntp_pool" ]; then
 	ntpdate -su "$ntp_pool"
 fi
