@@ -1,5 +1,6 @@
 #!/bin/bash
 
+TIMEZONE=UTC
 IOSCHEDULER=deadline
 CLOCKSYNC=ntp
 SELINUX=disabled
@@ -13,6 +14,7 @@ print_help() {
 	echo ""
 	echo "General options"
 	echo -e "  -v\tRed Hat/CentOS version (6, 7)"
+	echo -e "  -t\tTimezone (default: UTC)"
 	echo -e "  -y\tSet clock synchronization method to chrony (v7 only) (default: ntp)"
 	echo -e "  -n\tSet I/O scheduling to 'noop', if -s option not used default is 'deadline'"
 	echo -e "  -p\tSet SELinux to 'Permissive', if -p option not used default is 'disabled'"
@@ -20,20 +22,22 @@ print_help() {
 	exit 0
 }
 
-while getopts "hv:c:ynpr" opt; do
+while getopts "hv:t:p:ynPr" opt; do
 	case ${opt} in
 		h)
 			print_help ;;
-		c)
-			. "$OPTARG" ;;
 		v)
 			OSVER=$OPTARG ;;
+		t)
+			TIMEZONE=$OPTARG ;;
+		p)
+			ntp_pool=$OPTARG ;;
 		y)
-			CLOCKSYNC=$OPTARG ;;
+			CLOCKSYNC=chrony ;;
 		n)
 			IOSCHEDULER=noop ;;
-		p)
-			SELINUX=$OPTARG ;;
+		P)
+			SELINUX=permissive ;;
 		r)
 			REBOOT=true ;;
 		*)
@@ -102,26 +106,6 @@ else
 	systemctl stop firewalld
 fi
 
-# min_free_kbytes Setting: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/min_free_kbytes.htm
-if [ -n "$vm__min_free_kbytes" ]; then
-	sysctl -w vm.min_free_kbytes="$vm__min_free_kbytes"
-fi
-
-# System Max Open Files Limit: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/maxfiles.htm
-if [ -n "$fs__file_max" ]; then
-	sysctl -w fs.file-max="$fs__file_max"
-fi
-
-# pid_max Setting: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/pid_max.htm
-if [ -n "$kernel__pid_max" ]; then
-	sysctl -w kernel.pid_max="$kernel__pid_max"
-fi
-
-# pid_max Setting: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/pid_max.htm
-if [ -n "$vm__max_map_count" ]; then
-	sysctl -w vm.max_map_count="$vm__max_map_count"
-fi
-
 # Persisting Operating System Settings: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/etcrclocal.htm
 if $sev ; then chmod +x /etc/rc.d/rc.local ; fi
 if $sev ; then chkconfig tuned off ; fi
@@ -145,6 +129,7 @@ echo "if test -f /sys/kernel/mm/transparent_hugepage/enabled; then
 fi" >> /etc/rc.local
 
 # Check for Swappiness: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/CheckforSwappiness.htm
+echo 1 > /proc/sys/vm/swappiness
 echo 'vm.swappiness=1' >> /etc/sysctl.conf
 
 # Enabling Network Time Protocol (NTP): https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/ntp.htm
@@ -180,6 +165,12 @@ SELINUX=$SELINUX
 #    targeted - Targeted processes are protected,
 #    mls - Multi Level Security protection.
 SELINUXTYPE=targeted" > /etc/sysconfig/selinux
+
+# Disable Defrag: https://www.vertica.com/docs/latest/HTML/Content/Authoring/InstallationGuide/BeforeYouInstall/defrag.htm
+echo never > /sys/kernel/mm/transparent_hugepage/defrag
+echo "if test -f /sys/kernel/mm/transparent_hugepage/enabled; then
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag
+fi" >> /etc/rc.local
 
 # TZ Environment Variable: https://www.vertica.com/docs/latest/HTML/index.htm#Authoring/InstallationGuide/BeforeYouInstall/TZenvironmentVar.htm
 if [ -n "$ntp_pool" ]; then
